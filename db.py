@@ -1,19 +1,13 @@
 from pymongo import MongoClient
 
-
-# Includes database operations
 class DB:
-
-    # db initializations
     def __init__(self):
         self.client = MongoClient('mongodb://localhost:27017/')
         self.db = self.client['p2p-chat']
 
-    # checks if an account with the username exists
     def is_account_exist(self, username):
         return self.db.accounts.count_documents({'username': username}) > 0
 
-    # registers a user
     def register(self, username, password):
         account = {
             "username": username,
@@ -21,29 +15,57 @@ class DB:
         }
         self.db.accounts.insert_one(account)
 
-    # retrieves the password for a given username
     def get_password(self, username):
-        return self.db.accounts.find_one({"username": username})["password"]
+        user_data = self.db.accounts.find_one({"username": username})
+        return user_data["password"] if user_data else None
 
-    # checks if an account with the username online
     def is_account_online(self, username):
-        return self.db.online_peers.count_documents({'username': username}) > 0
+        return self.db.online_peers.count_documents({"username": username}) > 0
 
-
-    # logs in the user
     def user_login(self, username, ip, port):
         online_peer = {
             "username": username,
             "ip": ip,
             "port": port
         }
-        self.db.online_peers.insert_one(online_peer)
 
-    # logs out the user
     def user_logout(self, username):
         self.db.online_peers.delete_one({"username": username})
 
-    # retrieves the ip address and the port number of the username
     def get_peer_ip_port(self, username):
         res = self.db.online_peers.find_one({"username": username})
-        return res["ip"], res["port"]
+        return (res["ip"], res["port"]) if res else (None, None)
+
+
+    def get_online_users(self, room_name):
+        # Retrieve the list of online users in the chat room
+        chat_room = self.db.chat_rooms.find_one({'name': room_name})
+        online_users = chat_room.get('online_users', [])
+
+        # Format the list of online users as a string
+        online_users_str = ', '.join(str(user) for user in online_users)
+        return online_users_str
+
+    def send_message(self, room_name, sender, message):
+        # Assuming you have a collection for storing chat messages in the database
+        chat_messages = self.db.chat_messages
+        message_data = {
+            'room_name': room_name,
+            'sender': sender,
+            'message': message
+        }
+        chat_messages.insert_one(message_data)
+
+    def create_chat_room(self, room_name):
+        chat_room = {
+            'name': room_name,
+            'online_users': []  # Initialize an empty list for online users
+        }
+        self.db.chat_rooms.insert_one(chat_room)
+
+    def is_chat_room_exists(self, room_name):
+        return self.db.chat_rooms.count_documents({'name': room_name}) > 0
+
+    def update_online_users(self, room_name, username):
+        # Append the username to the list of online users in the chat room
+        self.db.chat_rooms.update_one({'name': room_name}, {'$addToSet': {'online_users': username}})
