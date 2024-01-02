@@ -28,6 +28,7 @@ class DB:
             "ip": ip,
             "port": port
         }
+        self.db.online_peers.insert_one(online_peer)
 
     def user_logout(self, username):
         self.db.online_peers.delete_one({"username": username})
@@ -55,17 +56,3 @@ class DB:
             'message': message
         }
         chat_messages.insert_one(message_data)
-
-    def create_chat_room(self, room_name):
-        chat_room = {
-            'name': room_name,
-            'online_users': []  # Initialize an empty list for online users
-        }
-        self.db.chat_rooms.insert_one(chat_room)
-
-    def is_chat_room_exists(self, room_name):
-        return self.db.chat_rooms.count_documents({'name': room_name}) > 0
-
-    def update_online_users(self, room_name, username):
-        # Append the username to the list of online users in the chat room
-        self.db.chat_rooms.update_one({'name': room_name}, {'$addToSet': {'online_users': username}})
