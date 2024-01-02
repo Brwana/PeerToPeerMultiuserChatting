@@ -1,5 +1,7 @@
 from socket import *
 import threading
+
+
 import select
 import logging
 import db
@@ -7,6 +9,7 @@ import hashlib
 import colorama
 from colorama import *
 
+from colorama import Back,Fore,Style
 colorama.init(autoreset=True)
 
 
@@ -56,8 +59,8 @@ class ClientThread(threading.Thread):
                     # join-success is sent to peer,
                     # if an account with this username is not exist, and the account is created
                     else:
-                        hashed_password = hashlib.sha256(password.encode()).hexdigest()
-                        db.register(message[1], hashed_password)
+
+                        db.register(message[1], message[2])
                         response = "join-success"
                         logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
                         self.tcpClientSocket.send(response.encode())
@@ -82,7 +85,7 @@ class ClientThread(threading.Thread):
                         retrievedPass = db.get_password(message[1])
                         # if password is correct, then peer's thread is added to threads list
                         # peer is added to db with its username, port number, and ip address
-                        if hashlib.sha256(password.encode()).hexdigest():
+                        if retrievedPass == message[2]:
                             self.username = message[1]
                             self.lock.acquire()
                             try:
@@ -96,7 +99,7 @@ class ClientThread(threading.Thread):
                             # timer thread of the udp server is started
                             response = "login-success"
                             logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
-                            # host1,port1 =get_peer_ip_port(message[1])
+                            online_peers.append(self.username)
                             onlinePeers[message[1]] = {"host": self.ip, "port": message[3]}
                             self.tcpClientSocket.send(response.encode())
                             self.udpServer = UDPServer(self.username, self.tcpClientSocket)
@@ -129,6 +132,11 @@ class ClientThread(threading.Thread):
                     else:
                         self.tcpClientSocket.close()
                         break
+                elif message[0] == "PRINT":
+                    response = "List of online users: " + ', '.join(str(user) for user in online_peers)
+                    logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
+                    self.tcpClientSocket.send(response.encode())
+
                 #   SEARCH  #
                 elif message[0] == "SEARCH":
                     # checks if an account with the username exists
@@ -155,7 +163,9 @@ class ClientThread(threading.Thread):
                     else:
                         chatting[message[1]] = []
                         response = "chatroom-creation-success"
+                        chat_rooms.append(message[1])
                     self.tcpClientSocket.send(response.encode())
+                    # chat room#
                 elif message[0] == "chatroom-join-request":
                     if message[1] not in chatting.keys():
                         response = "chatroom-not-found"
@@ -241,11 +251,15 @@ print(f"{Fore.BLUE}Registry IP address: {Fore.RESET} " + f"{Fore.LIGHTBLUE_EX}{h
 print(f"{Fore.BLUE}Registry port number: {Fore.RESET}" + f"{Fore.LIGHTBLUE_EX}{str(port)}{Fore.RESET}")
 
 # onlinePeers list for online account
-onlinePeers = {}
+onlinePeers ={}
+
+online_peers = []
 # accounts list for accounts
 accounts = {}
 # tcpThreads list for online client's thread
 tcpThreads = {}
+# list of chat room names
+chat_rooms=[]
 
 # tcp and udp socket initializations
 tcpSocket = socket(AF_INET, SOCK_STREAM)
